@@ -64,6 +64,8 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	// message loop
+
 	msg_last := time.Now()
 	for update := range updates {
 		if update.Message == nil {
@@ -123,7 +125,7 @@ func tlscan(addr string, timeout time.Duration) string {
 			defer c.Close()
 			state := c.ConnectionState()
 			alpn := state.NegotiatedProtocol
-			return fmt.Sprint(line, "Found TLSv", TlsDic[state.Version], ",ALPN:", alpn, "\n", state.PeerCertificates[0].Subject)
+			return fmt.Sprint(line, "Found TLSv", TlsDic[state.Version], "\nALPN: ", alpn, "\n", state.PeerCertificates[0].Subject)
 		}
 	}
 }
