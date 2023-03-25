@@ -100,6 +100,8 @@ func main() {
 	}
 }
 
+// from https://github.com/XTLS/RealiTLScanner
+
 var TlsDic = map[uint16]string{
 	0x0301: "1.0",
 	0x0302: "1.1",
