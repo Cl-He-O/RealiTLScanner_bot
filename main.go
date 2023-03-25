@@ -104,7 +104,7 @@ func main() {
 
 			switch msg.Command() {
 			case "start":
-				reply("Hello")
+				reply("Hello.\nRepo at https://github.com/Cl-He-O/RealiTLScanner_bot")
 			case "tlscan":
 				if limiter.Allow() {
 					r := limiter.Reserve()
