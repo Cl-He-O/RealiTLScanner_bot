@@ -2,3 +2,5 @@ github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1 h1:wG8n/XJQ07TmjbITcGi
 github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1/go.mod h1:A2S0CWkNylc2phvKXWBBdD3K0iGnDBGbzRpISP2zBl8=
 github.com/xtls/RealiTLScanner v0.1.0 h1:yoI1pO8hcH9gT97/libFmYJdjlFbTi1cU4NvqzcgYtE=
 github.com/xtls/RealiTLScanner v0.1.0/go.mod h1:BALJBgvrnyL0eHvmKm0ItBM5Trp6/fp6oqBmoNiqAt0=
+golang.org/x/time v0.3.0 h1:rg5rLMjNzMS1RkNLzCG38eapWhnYLFYXDXj2gOlr8j4=
+golang.org/x/time v0.3.0/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
