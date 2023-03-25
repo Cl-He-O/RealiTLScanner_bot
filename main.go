@@ -112,7 +112,7 @@ func tlscan(addr string, timeout time.Duration) string {
 	if err != nil {
 		return fmt.Sprint("TCP connection failed: ", err)
 	} else {
-		line := "" + conn.RemoteAddr().String() + " \t"
+		line := "Addr: " + conn.RemoteAddr().String() + "\n"
 		conn.SetDeadline(time.Now().Add(timeout))
 		c := tls.Client(conn, &tls.Config{
 			InsecureSkipVerify: true,
@@ -125,7 +125,7 @@ func tlscan(addr string, timeout time.Duration) string {
 			defer c.Close()
 			state := c.ConnectionState()
 			alpn := state.NegotiatedProtocol
-			return fmt.Sprint(line, "Found TLSv", TlsDic[state.Version], "\nALPN: ", alpn, "\n", state.PeerCertificates[0].Subject)
+			return fmt.Sprint(line, "Found TLSv", TlsDic[state.Version], "\nALPN: ", alpn, "\nCertificate subject: ", state.PeerCertificates[0].Subject)
 		}
 	}
 }
