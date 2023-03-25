@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -11,27 +13,58 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+type Config struct {
+	Token       string `json:"token"`
+	Debug       bool   `json:"debug"`
+	Timeout     string `json:"timeout"`
+	MinDuration string `json:"min_duration"`
+}
+
 func main() {
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_APITOKEN"))
+	// read config
+	configPtr := flag.String("config", "config.json", "path to config file")
+	flag.Parse()
+
+	configFile, err := os.Open(*configPtr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	bot.Debug = true
+
+	var config Config
+	if err := json.NewDecoder(configFile).Decode(&config); err != nil {
+		log.Fatal(err)
+	}
+
+	timeout, err := time.ParseDuration(config.Timeout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	min_duration, err := time.ParseDuration(config.MinDuration)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// init bot
+	bot, err := tgbotapi.NewBotAPI(config.Token)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bot.Debug = config.Debug
 
 	_, err = bot.Request(tgbotapi.NewSetMyCommands(
-		tgbotapi.BotCommand{Command: "tlscan", Description: "check if the specified server is REALITY compatible"},
+		tgbotapi.BotCommand{Command: "tlscan", Description: "usage: /tlscan example.com:443"},
 	))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	const timeout = 10
-
 	u := tgbotapi.NewUpdate(0)
-	u.Timeout = timeout
+	u.Timeout = int(timeout.Seconds())
 
 	updates := bot.GetUpdatesChan(u)
 
+	msg_last := time.Now()
 	for update := range updates {
 		if update.Message == nil {
 			continue
@@ -46,19 +79,21 @@ func main() {
 
 		switch update.Message.Command() {
 		case "tlscan":
-			{
+			if time.Since(msg_last) > min_duration {
+				msg_last = time.Now()
+
 				go func() {
-					msg.Text = tlscan(addr, time.Second*timeout)
+					msg.Text = tlscan(addr, timeout)
+
+					if _, err := bot.Send(msg); err != nil {
+						fmt.Println("Send message failed", err)
+					}
 				}()
 			}
 		default:
 			{
-				msg.Text = "unknown command"
+				continue
 			}
-		}
-
-		if _, err := bot.Send(msg); err != nil {
-			log.Fatal(err)
 		}
 	}
 }
@@ -73,7 +108,7 @@ var TlsDic = map[uint16]string{
 func tlscan(addr string, timeout time.Duration) string {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
-		return fmt.Sprint("", "TCP connection failed: ", err)
+		return fmt.Sprint("TCP connection failed: ", err)
 	} else {
 		line := "" + conn.RemoteAddr().String() + " \t"
 		conn.SetDeadline(time.Now().Add(timeout))
@@ -83,15 +118,12 @@ func tlscan(addr string, timeout time.Duration) string {
 		})
 		err = c.Handshake()
 		if err != nil {
-			return fmt.Sprint("", line, "TLS handshake failed: ", err)
+			return fmt.Sprint(line, "TLS handshake failed: ", err)
 		} else {
 			defer c.Close()
 			state := c.ConnectionState()
 			alpn := state.NegotiatedProtocol
-			if alpn == "" {
-				alpn = "  "
-			}
-			return fmt.Sprint("", line, "----- Found TLS v", TlsDic[state.Version], "\tALPN", alpn, "\t", state.PeerCertificates[0].Subject)
+			return fmt.Sprint(line, "Found TLSv", TlsDic[state.Version], ",ALPN:", alpn, "\n", state.PeerCertificates[0].Subject)
 		}
 	}
 }
