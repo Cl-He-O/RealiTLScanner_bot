@@ -104,7 +104,7 @@ func main() {
 
 			switch msg.Command() {
 			case "start":
-				reply("Hello.")
+				reply("Hello")
 			case "tlscan":
 				if limiter.Allow() {
 					r := limiter.Reserve()
@@ -134,7 +134,8 @@ func tlscan(addr string, timeout time.Duration) string {
 
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
-		return fmt.Sprint("TCP connection failed: ", err)
+		err := err.Error()
+		return fmt.Sprint("TCP connection failed", err[strings.LastIndex(err, ":"):])
 	} else {
 		line := "Addr: " + conn.RemoteAddr().String() + "\n"
 		conn.SetDeadline(time.Now().Add(timeout))
@@ -144,7 +145,8 @@ func tlscan(addr string, timeout time.Duration) string {
 		})
 		err = c.Handshake()
 		if err != nil {
-			return fmt.Sprint(line, "TLS handshake failed: ", err)
+			err := err.Error()
+			return fmt.Sprint(line, "TLS handshake failed", err[strings.LastIndex(err, ":"):])
 		} else {
 			defer c.Close()
 			state := c.ConnectionState()
