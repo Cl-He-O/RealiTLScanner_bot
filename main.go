@@ -9,22 +9,21 @@ import (
 	"net"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
 )
 
 type Config struct {
-	Token     string  `json:"token"`
-	Debug     bool    `json:"debug,omitempty"`
-	Admin     string  `json:"admin,omitempty"`
-	Timeout   string  `json:"timeout,omitempty"`
-	Rate      float64 `json:"rate,omitempty"`
-	Bucket    int     `json:"bucket,omitempty"`
-	LocalAddr string  `json:"local_addr,omitempty"`
-	SOCKS5    string  `json:"socks5,omitempty"`
+	Token         string  `json:"token"`
+	Debug         bool    `json:"debug,omitempty"`
+	Admin         string  `json:"admin,omitempty"`
+	Timeout       string  `json:"timeout,omitempty"`
+	Rate          float64 `json:"rate,omitempty"`
+	Bucket        int     `json:"bucket,omitempty"`
+	InterfaceName string  `json:"ifname,omitempty"`
 }
 
 func main() {
@@ -38,13 +37,12 @@ func main() {
 	}
 
 	config := Config{
-		Debug:     false,
-		Admin:     "",
-		Timeout:   "5s",
-		Rate:      1,
-		Bucket:    5,
-		LocalAddr: "0.0.0.0",
-		SOCKS5:    "",
+		Debug:         false,
+		Admin:         "",
+		Timeout:       "5s",
+		Rate:          1,
+		Bucket:        5,
+		InterfaceName: "",
 	}
 
 	if err := json.NewDecoder(configFile).Decode(&config); err != nil {
@@ -113,7 +111,7 @@ func main() {
 			case "tlscan":
 				if limiter.Allow() {
 					r := limiter.Reserve()
-					reply(tlscan(msg.CommandArguments(), timeout, config.SOCKS5, config.LocalAddr))
+					reply(tlscan(msg.CommandArguments(), timeout, config.InterfaceName))
 					r.Cancel()
 				} else {
 					reply("Rate limit exceeded, please try again later.")
@@ -132,50 +130,29 @@ var TlsDic = map[uint16]string{
 	0x0304: "1.3",
 }
 
-type DialerTimeout struct {
-	timeout    time.Duration
-	local_addr string
-}
-
-func (dialer DialerTimeout) Dial(network, addr string) (c net.Conn, err error) {
-	var dialer_t net.Dialer
-	if dialer.local_addr == "" {
-		dialer_t = net.Dialer{Timeout: dialer.timeout}
-	} else {
-		local_addr, _ := net.ResolveTCPAddr("tcp", dialer.local_addr)
-		dialer_t = net.Dialer{Timeout: dialer.timeout, LocalAddr: local_addr}
-	}
-
-	return dialer_t.Dial(network, addr)
-}
-
-func tlscan(addr string, timeout time.Duration, socks5_addr string, local_addr string) string {
+func tlscan(addr string, timeout time.Duration, interfaceName string) string {
 	if strings.LastIndex(addr, ":") < 0 {
 		addr += ":443"
 	}
 
-	var dialer proxy.Dialer = DialerTimeout{timeout, local_addr}
+	dialer := net.Dialer{Timeout: timeout}
 
-	if socks5_addr != "" {
+	dialer.Control = func(network, address string, c syscall.RawConn) error {
 		var err error
-		dialer, err = proxy.SOCKS5("tcp", socks5_addr, nil, dialer)
-		if err != nil {
-			panic("Error creating SOCKS5 dialer")
-		}
+		c.Control(func(fd uintptr) {
+			err = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, interfaceName)
+		})
+
+		return err
 	}
 
-	ipaddr, err := net.ResolveTCPAddr("tcp", addr)
+	conn, err := dialer.Dial("tcp", addr)
 
-	if err != nil {
-		return fmt.Sprint("TCP connection failed: ", err.Error())
-	}
-
-	conn, err := dialer.Dial("tcp", ipaddr.String())
 	if err != nil {
 		err := err.Error()
 		return fmt.Sprint("TCP connection failed: ", err)
 	} else {
-		line := "Addr: " + ipaddr.String() + "\n"
+		line := "Addr: " + conn.RemoteAddr().String() + "\n"
 		conn.SetDeadline(time.Now().Add(timeout))
 		c := tls.Client(conn, &tls.Config{
 			InsecureSkipVerify: true,
